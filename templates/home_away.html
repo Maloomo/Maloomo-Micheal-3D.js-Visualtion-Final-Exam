@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home vs. Away Performance</title>
+    <!-- Include D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Add your CSS styles here */
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            width: 100px;
+            height: auto;
+            padding: 5px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        h1{
+            color:red;
+            text-transform: uppercase;
+            font-size: 30px;
+            margin-bottom: 25px;
+            text-decoration: underline;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Home vs. Away Performance</h1>
+    <div id="pie-chart"></div>
+    <div class="tooltip" style="opacity: 0;"></div>
+    
+    <script>
+        // Fetch data from Flask route
+        fetch('/data')
+        .then(response => response.json())
+        .then(createPieChart)
+        .catch(error => console.error("Error fetching data: ", error));
+
+        // Function to create pie chart
+        function createPieChart(data) {
+            // Process the data and calculate home vs. away performance
+            var homeAwayPerformance = d3.rollup(data, 
+                // Aggregator function to count matches by venue
+                v => d3.sum(v, d => 1), 
+                // Grouping key function
+                d => d.Venue
+            );
+
+            // Convert performance data to array of objects
+            var performanceArray = Array.from(homeAwayPerformance, ([key, value]) => ({ venue: key, matches: value }));
+
+            // Create a pie chart
+            var width = 350;
+            var height = 300;
+            var radius = Math.min(width, height) / 2;
+
+            var color = d3.scaleOrdinal()
+                .domain(performanceArray.map(d => d.venue))
+                .range(["#1f77b4", "#ff7f0e"]); // Blue for Home, Orange for Away
+
+            var pie = d3.pie()
+                .value(d => d.matches);
+
+            var arc = d3.arc()
+                .innerRadius(0)
+                .outerRadius(radius);
+
+            var svg = d3.select("#pie-chart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+            var arcs = svg.selectAll("arc")
+                .data(pie(performanceArray))
+                .enter()
+                .append("g");
+
+            arcs.append("path")
+                .attr("fill", d => color(d.data.venue))
+                .attr("d", arc)
+                .on("mouseover", handleMouseOver)
+                .on("mouseout", handleMouseOut);
+
+            // Add labels
+            arcs.append("text")
+                .attr("transform", d => "translate(" + arc.centroid(d) + ")")
+                .attr("text-anchor", "middle")
+                .text(d => d.data.venue);
+
+            // Define tooltip
+            var tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+
+            // Function to handle mouseover event
+            function handleMouseOver(event, d) {
+                d3.select(this).attr("fill", color(d.data.venue));
+                tooltip.transition().duration(200).style("opacity", .9);
+                tooltip.html(d.data.venue + "<br>" + d.data.matches + " matches")
+                    .style("left", (event.pageX) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+            }
+
+            // Function to handle mouseout event
+            function handleMouseOut(d) {
+                d3.select(this).attr("fill", color(d.data.venue));
+                tooltip.transition().duration(500).style("opacity", 0);
+            }
+        }
+    </script>
+</body>
+</html>

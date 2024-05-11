@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goal Distribution by Type</title>
+    <!-- Include D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* Add your CSS styles here */
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            width: auto;
+            height: auto;
+            padding: 5px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+        .bar {
+            fill: steelblue;
+        }
+        .bar:hover {
+            fill: orange;
+        }
+        h1{
+            color:red;
+            margin-bottom:15px;
+            text-align:center;
+            text-transform:uppercase;
+            text-decoration:underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Goal Distribution by Type</h1>
+    <svg id="bar-chart"></svg>
+    <div class="tooltip" style="opacity: 0;"></div>
+
+    <script>
+        // Fetch data from Flask route
+        fetch('/data')
+        .then(response => response.json())
+        .then(data => {
+            // Process the data and calculate goal distribution by type
+            var goalDistribution = d3.rollup(data, 
+                // Aggregator function to count goals by type
+                v => d3.sum(v, d => 1), 
+                // Grouping key function
+                d => d.Type
+            );
+
+            // Convert goal distribution to array of objects
+            var goalDistributionArray = Array.from(goalDistribution, ([key, value]) => ({ type: key, goals: value }));
+
+            // Create SVG element
+            var margin = { top: 15, right: 10, bottom: 100, left: 40 },
+                width = 550 - margin.left - margin.right,
+                height = 300 - margin.top - margin.bottom;
+
+            var svg = d3.select("#bar-chart")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            // Define x and y scales
+            var x = d3.scaleBand()
+                .domain(goalDistributionArray.map(d => d.type))
+                .range([0, width])
+                .padding(0.1);
+
+            var y = d3.scaleLinear()
+                .domain([0, d3.max(goalDistributionArray, d => d.goals)])
+                .nice()
+                .range([height, 0]);
+
+            // Draw bars
+            svg.selectAll(".bar")
+                .data(goalDistributionArray)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d.type))
+                .attr("y", d => y(d.goals))
+                .attr("width", x.bandwidth())
+                .attr("height", d => height - y(d.goals))
+                .on("mouseover", function(event, d) {
+                    d3.select(this).attr("fill", "orange");
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    tooltip.html(d.type + "<br>" + d.goals + " goals")
+                        .style("left", (event.pageX) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function(d) {
+                    d3.select(this).attr("fill", "steelblue");
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+
+            // Draw x-axis
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x))
+                .selectAll("text")
+                .attr("transform", "rotate(-90)")
+                .style("text-anchor", "end");
+
+            // Draw y-axis
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            // Define tooltip
+            var tooltip = d3.select("body").append("div")
+                .attr("class", "tooltip")
+                .style("opacity", 0);
+        })
+        .catch(error => console.error("Error fetching data: ", error));
+    </script>
+</body>
+</html>
